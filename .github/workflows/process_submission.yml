@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   update_index:
-    if: contains(github.event.issue.labels.*.name, 'submission')
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
