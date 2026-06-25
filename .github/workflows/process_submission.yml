@@ -1,0 +1,97 @@
+name: Process Project Submission
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  update_dashboard:
+    if: contains(github.event.issue.labels.*.name, 'submission')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Extract Data and Update Dashboard
+        shell: python
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          USER_NAME: ${{ github.event.issue.user.login }}
+        run: |
+          import os
+          import re
+
+          body = os.environ['ISSUE_BODY']
+          issue_num = os.environ['ISSUE_NUMBER']
+          
+          def extract_field(label):
+              # البحث عن الحقل بناءً على هيكلية Issue Forms
+              pattern = rf"### {label}\s*\n*(.*?)(?=\n###|$)"
+              match = re.search(pattern, body, re.DOTALL)
+              return match.group(1).strip() if match else "غير محدد"
+
+          # استخراج البيانات
+          level = extract_field("مستوى المشروع")
+          p_id = extract_field("رقم المشروع")
+          title = extract_field("عنوان المشروع")
+          students = extract_field("أسماء الطلاب المشاركين في المشروع").replace("\n", "<br>")
+          supervisors = extract_field("أسماء المشرفين على المشروع من الهيئة التدريسية").replace("\n", "<br>")
+          report = extract_field("ملف التقرير الجامعي")
+
+          # تجهيز السطر الجديد للجدول
+          new_entry = f"| {p_id} | {title} | {students} | {supervisors} | {report} | [تفاصيل #{issue_num}](https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{issue_num}) |\n"
+
+          # قراءة ملف الـ Dashboard أو إنشاؤه
+          filename = 'DASHBOARD.md'
+          if not os.path.exists(filename):
+              content = "# 📊 لوحة تحكم مشاريع التخرج والتقارير\n\n## فصلي\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n\n## تخرج1\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n\n## تخرج2\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n"
+          else:
+              with open(filename, 'r', encoding='utf-8') as f:
+                  content = f.read()
+
+          # تحديد مكان الإضافة بناءً على المستوى
+          header = f"## {level}"
+          if header in content:
+              parts = content.split(header)
+              # إضافة السطر بعد ترويسة الجدول مباشرة
+              table_start = parts[1].find("|---|---|---|---|---|---|") + 28
+              updated_content = parts[0] + header + parts[1][:table_start] + "\n" + new_entry + parts[1][table_start:]
+          else:
+              updated_content = content + f"\n{header}\n{new_entry}"
+
+          with open(filename, 'w', encoding='utf-8') as f:
+              f.write(updated_content)
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add DASHBOARD.md
+          git commit -m "Update Dashboard with Project #${{ github.event.issue.number }}"
+          git push
+
+      - name: Comment and Close Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "✅ تم استلام مشروعك بنجاح! تم إدراج البيانات في [لوحة تحكم المحكمين](DASHBOARD.md). تم إغلاق هذه القضية تلقائياً."
+            })
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            })
