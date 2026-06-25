@@ -8,7 +8,7 @@ permissions:
   issues: write
 
 jobs:
-  update_dashboard:
+  update_index:
     if: contains(github.event.issue.labels.*.name, 'submission')
     runs-on: ubuntu-latest
     steps:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Extract Data and Update Dashboard
+      - name: Extract Data and Update index
         shell: python
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -51,7 +51,7 @@ jobs:
           new_entry = f"| {p_id} | {title} | {students} | {supervisors} | {report} | [تفاصيل #{issue_num}](https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{issue_num}) |\n"
 
           # قراءة ملف الـ Dashboard أو إنشاؤه
-          filename = 'DASHBOARD.md'
+          filename = 'index.md'
           if not os.path.exists(filename):
               content = "# 📊 لوحة تحكم مشاريع التخرج والتقارير\n\n## فصلي\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n\n## تخرج1\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n\n## تخرج2\n| الرقم | العنوان | الطلاب | المشرفون | التقرير | الرابط |\n|---|---|---|---|---|---|\n"
           else:
@@ -75,8 +75,8 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add DASHBOARD.md
-          git commit -m "Update Dashboard with Project #${{ github.event.issue.number }}"
+          git add index.md
+          git commit -m "Update index with Project #${{ github.event.issue.number }}"
           git push
 
       - name: Comment and Close Issue
@@ -87,7 +87,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "✅ تم استلام مشروعك بنجاح! تم إدراج البيانات في [لوحة تحكم المحكمين](DASHBOARD.md). تم إغلاق هذه القضية تلقائياً."
+              body: "✅ تم استلام مشروعك بنجاح! تم إدراج البيانات في [لوحة تحكم المحكمين](index.md). تم إغلاق هذه القضية تلقائياً."
             })
             github.rest.issues.update({
               issue_number: context.issue.number,
